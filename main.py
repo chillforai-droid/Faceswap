@@ -1,72 +1,44 @@
-from fastapi import FastAPI, File, UploadFile, Form
-import numpy as np
+from fastapi import FastAPI, File, UploadFile, Request
+from fastapi.responses import StreamingResponse, HTMLResponse
+from fastapi.templating import Jinja2Templates
 import cv2
-from fastapi.responses import FileResponse
-from fastapi.middleware.cors import CORSMiddleware
+import numpy as np
+from io import BytesIO
 
 app = FastAPI()
 
-# CORS (frontend connect)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# templates folder
+templates = Jinja2Templates(directory="templates")
 
-# Face detector
-face_cascade = cv2.CascadeClassifier(
-    cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-)
+# ---------------- HOME (Frontend UI) ----------------
+@app.get("/", response_class=HTMLResponse)
+async def home(request: Request):
+    return templates.TemplateResponse("index.html", {"request": request})
 
-@app.get("/")
-def home():
-    return {"message": "🔥 Face Swap API Enhanced"}
 
+# ---------------- FACE SWAP API ----------------
 @app.post("/swap")
-async def swap_faces(
-    file1: UploadFile = File(...),
-    file2: UploadFile = File(...),
-    strength: float = Form(1.0)
-):
-    img1 = cv2.imdecode(np.frombuffer(await file1.read(), np.uint8), cv2.IMREAD_COLOR)
-    img2 = cv2.imdecode(np.frombuffer(await file2.read(), np.uint8), cv2.IMREAD_COLOR)
+async def face_swap(file1: UploadFile = File(...), file2: UploadFile = File(...)):
 
-    gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    img1_bytes = await file1.read()
+    img2_bytes = await file2.read()
 
-    faces1 = face_cascade.detectMultiScale(gray1, 1.3, 5)
-    faces2 = face_cascade.detectMultiScale(gray2, 1.3, 5)
+    img1 = cv2.imdecode(np.frombuffer(img1_bytes, np.uint8), cv2.IMREAD_COLOR)
+    img2 = cv2.imdecode(np.frombuffer(img2_bytes, np.uint8), cv2.IMREAD_COLOR)
 
-    if len(faces1) == 0 or len(faces2) == 0:
-        return {"error": "Face not detected"}
+    # resize same size
+    img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
 
-    (x1, y1, w1, h1) = faces1[0]
-    (x2, y2, w2, h2) = faces2[0]
+    # simple blend (improved)
+    alpha = 0.6
+    result = cv2.addWeighted(img1, alpha, img2, 1 - alpha, 0)
 
-    face1 = img1[y1:y1+h1, x1:x1+w1]
-    face1 = cv2.resize(face1, (w2, h2))
+    # convert to jpg
+    _, buffer = cv2.imencode(".jpg", result)
+    return StreamingResponse(BytesIO(buffer.tobytes()), media_type="image/jpeg")
 
-    # Color match
-    face1_lab = cv2.cvtColor(face1, cv2.COLOR_BGR2LAB)
-    face2_lab = cv2.cvtColor(img2[y2:y2+h2, x2:x2+w2], cv2.COLOR_BGR2LAB)
-    face1_lab[:,:,0] = face2_lab[:,:,0]
-    face1 = cv2.cvtColor(face1_lab, cv2.COLOR_LAB2BGR)
 
-    # Mask + blur
-    mask = np.zeros((h2, w2), dtype=np.uint8)
-    cv2.ellipse(mask, (w2//2, h2//2), (w2//2, h2//2), 0, 0, 360, 255, -1)
-    mask = cv2.GaussianBlur(mask, (15,15), 10)
-
-    center = (x2 + w2//2, y2 + h2//2)
-
-    output = cv2.seamlessClone(face1, img2, mask, center, cv2.NORMAL_CLONE)
-
-    # Strength blend
-    final = cv2.addWeighted(output, strength, img2, 1-strength, 0)
-
-    path = "output.jpg"
-    cv2.imwrite(path, final)
-
-    return FileResponse(path, media_type="image/jpeg")
+# ---------------- HEALTH CHECK ----------------
+@app.get("/health")
+def health():
+    return {"status": "running 🚀"}
