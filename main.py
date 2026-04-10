@@ -2,9 +2,13 @@ from fastapi import FastAPI, File, UploadFile
 import numpy as np
 import cv2
 from fastapi.responses import FileResponse
-import os
 
-app = FastAPI()
+app = FastAPI(
+    title="Face Swap API",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
 @app.get("/")
 def home():
