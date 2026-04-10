@@ -3,36 +3,31 @@ from fastapi.responses import StreamingResponse, FileResponse
 import cv2
 import numpy as np
 from io import BytesIO
-import os
 
 app = FastAPI()
 
-# ---------------- HOME (HTML serve) ----------------
 @app.get("/")
 def home():
     return FileResponse("templates/index.html")
 
-
-# ---------------- FACE SWAP ----------------
 @app.post("/swap")
 async def face_swap(file1: UploadFile = File(...), file2: UploadFile = File(...)):
-    try:
-        img1 = np.frombuffer(await file1.read(), np.uint8)
-        img2 = np.frombuffer(await file2.read(), np.uint8)
+    img1 = np.frombuffer(await file1.read(), np.uint8)
+    img2 = np.frombuffer(await file2.read(), np.uint8)
 
-        img1 = cv2.imdecode(img1, cv2.IMREAD_COLOR)
-        img2 = cv2.imdecode(img2, cv2.IMREAD_COLOR)
+    img1 = cv2.imdecode(img1, cv2.IMREAD_COLOR)
+    img2 = cv2.imdecode(img2, cv2.IMREAD_COLOR)
 
-        if img1 is None or img2 is None:
-            return {"error": "Invalid images"}
+    img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
 
-        img2 = cv2.resize(img2, (img1.shape[1], img1.shape[0]))
+    # smoother blend
+    result = cv2.seamlessClone(
+        img1,
+        img2,
+        255 * np.ones(img1.shape[:2], np.uint8),
+        (img2.shape[1]//2, img2.shape[0]//2),
+        cv2.NORMAL_CLONE
+    )
 
-        result = cv2.addWeighted(img1, 0.6, img2, 0.4, 0)
-
-        _, buffer = cv2.imencode(".jpg", result)
-
-        return StreamingResponse(BytesIO(buffer.tobytes()), media_type="image/jpeg")
-
-    except Exception as e:
-        return {"error": str(e)}
+    _, buffer = cv2.imencode(".jpg", result)
+    return StreamingResponse(BytesIO(buffer.tobytes()), media_type="image/jpeg")
