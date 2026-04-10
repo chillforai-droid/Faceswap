@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Face Swap Tool</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+  text-align: center;
+}
+
+.container {
+  max-width: 400px;
+  margin: auto;
+  padding: 20px;
+}
+
+h1 {
+  color: #38bdf8;
+}
+
+.upload-box {
+  border: 2px dashed #38bdf8;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+}
+
+button {
+  background: #38bdf8;
+  color: black;
+  padding: 10px;
+  border: none;
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 8px;
+  font-weight: bold;
+}
+
+img {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 10px;
+}
+
+.loader {
+  display: none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>🔥 Face Swap AI</h1>
+
+  <div class="upload-box">
+    <input type="file" id="file1">
+  </div>
+
+  <div class="upload-box">
+    <input type="file" id="file2">
+  </div>
+
+  <button onclick="swapFace()">Swap Face</button>
+
+  <p class="loader" id="loading">⏳ Processing...</p>
+
+  <img id="result" />
+</div>
+
+<script>
+async function swapFace() {
+  let file1 = document.getElementById("file1").files[0];
+  let file2 = document.getElementById("file2").files[0];
+
+  let formData = new FormData();
+  formData.append("file1", file1);
+  formData.append("file2", file2);
+
+  document.getElementById("loading").style.display = "block";
+
+  let res = await fetch("/swap", {
+    method: "POST",
+    body: formData
+  });
+
+  let blob = await res.blob();
+  let url = URL.createObjectURL(blob);
+
+  document.getElementById("result").src = url;
+  document.getElementById("loading").style.display = "none";
+}
+</script>
+
+</body>
+</html>
