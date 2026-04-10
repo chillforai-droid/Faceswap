@@ -3,8 +3,12 @@ from fastapi.responses import StreamingResponse, FileResponse
 import cv2
 import numpy as np
 from io import BytesIO
+import mediapipe as mp
 
 app = FastAPI()
+
+mp_face = mp.solutions.face_detection.FaceDetection(model_selection=1)
+
 
 @app.get("/")
 def home():
@@ -12,21 +16,20 @@ def home():
 
 
 def detect_face(img):
-    face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-    )
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    faces = face_cascade.detectMultiScale(gray, 1.3, 5)
-    return faces
+    h, w, _ = img.shape
+    results = mp_face.process(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
 
+    if not results.detections:
+        return None
 
-def match_color(source, target):
-    # simple color match (mean adjustment)
-    source_mean = np.mean(source, axis=(0,1))
-    target_mean = np.mean(target, axis=(0,1))
-    diff = target_mean - source_mean
-    result = source + diff
-    return np.clip(result, 0, 255).astype(np.uint8)
+    box = results.detections[0].location_data.relative_bounding_box
+
+    x = int(box.xmin * w)
+    y = int(box.ymin * h)
+    w_box = int(box.width * w)
+    h_box = int(box.height * h)
+
+    return (x, y, w_box, h_box)
 
 
 @app.post("/swap")
@@ -37,33 +40,27 @@ async def swap(file1: UploadFile = File(...), file2: UploadFile = File(...)):
     img1 = cv2.imdecode(img1, cv2.IMREAD_COLOR)
     img2 = cv2.imdecode(img2, cv2.IMREAD_COLOR)
 
-    faces1 = detect_face(img1)
-    faces2 = detect_face(img2)
+    face1 = detect_face(img1)
+    face2 = detect_face(img2)
 
-    if len(faces1) == 0 or len(faces2) == 0:
+    if face1 is None or face2 is None:
         return {"error": "Face not detected"}
 
-    (x1, y1, w1, h1) = faces1[0]
-    (x2, y2, w2, h2) = faces2[0]
+    x1, y1, w1, h1 = face1
+    x2, y2, w2, h2 = face2
 
-    face1 = img1[y1:y1+h1, x1:x1+w1]
-    face2 = img2[y2:y2+h2, x2:x2+w2]
+    f1 = img1[y1:y1+h1, x1:x1+w1]
+    f2 = img2[y2:y2+h2, x2:x2+w2]
 
-    face2 = cv2.resize(face2, (w1, h1))
+    f2 = cv2.resize(f2, (w1, h1))
 
-    # 🎨 Color match
-    face2 = match_color(face2, face1)
-
-    # 🎯 Mask (oval)
     mask = np.zeros((h1, w1), dtype=np.uint8)
     cv2.ellipse(mask, (w1//2, h1//2), (w1//2, h1//2), 0, 0, 360, 255, -1)
-
-    # 🧊 Blur edges
     mask = cv2.GaussianBlur(mask, (31,31), 0)
 
     center = (x1 + w1//2, y1 + h1//2)
 
-    result = cv2.seamlessClone(face2, img1, mask, center, cv2.NORMAL_CLONE)
+    result = cv2.seamlessClone(f2, img1, mask, center, cv2.NORMAL_CLONE)
 
     _, buffer = cv2.imencode(".jpg", result)
     return StreamingResponse(BytesIO(buffer.tobytes()), media_type="image/jpeg")
