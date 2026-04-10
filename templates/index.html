@@ -1,39 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Face Swap Tool</title>
+<title>AI Face Swap</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 body {
+  font-family: Arial;
   background: #0f172a;
   color: white;
   text-align: center;
-  font-family: Arial;
 }
 
 .container {
-  max-width: 400px;
+  max-width: 420px;
   margin: auto;
   padding: 20px;
 }
 
-input {
-  margin: 10px;
+.box {
+  border: 2px dashed #38bdf8;
+  padding: 20px;
+  margin: 10px 0;
+  border-radius: 12px;
 }
 
 button {
   background: #22c55e;
-  padding: 10px;
-  border: none;
+  padding: 12px;
   width: 100%;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
   color: white;
-  border-radius: 8px;
 }
 
 img {
   width: 100%;
   margin-top: 10px;
+  border-radius: 10px;
+}
+
+.loader {
+  display: none;
 }
 </style>
 </head>
@@ -41,15 +50,28 @@ img {
 <body>
 
 <div class="container">
-  <h2>🔥 Face Swap Tool</h2>
+  <h2>🔥 AI Face Swap</h2>
 
-  <input type="file" id="file1"><br>
-  <input type="file" id="file2"><br>
+  <div class="box">
+    <input type="file" id="file1">
+    <p>Upload Face Image</p>
+  </div>
 
-  <button onclick="swap()">Swap</button>
+  <div class="box">
+    <input type="file" id="file2">
+    <p>Upload Target Image</p>
+  </div>
 
-  <p id="loading"></p>
+  <button onclick="swap()">Swap Face</button>
+
+  <p class="loader" id="loading">⏳ Processing...</p>
+
   <img id="result">
+  
+  <br><br>
+  <a id="download" style="display:none;" download="result.jpg">
+    <button>Download Result</button>
+  </a>
 
 </div>
 
@@ -62,7 +84,7 @@ async function swap() {
   form.append("file1", f1);
   form.append("file2", f2);
 
-  document.getElementById("loading").innerText = "⏳ Processing...";
+  document.getElementById("loading").style.display = "block";
 
   let res = await fetch("/swap", {
     method: "POST",
@@ -70,9 +92,13 @@ async function swap() {
   });
 
   let blob = await res.blob();
-  document.getElementById("result").src = URL.createObjectURL(blob);
+  let url = URL.createObjectURL(blob);
 
-  document.getElementById("loading").innerText = "";
+  document.getElementById("result").src = url;
+  document.getElementById("download").href = url;
+  document.getElementById("download").style.display = "block";
+
+  document.getElementById("loading").style.display = "none";
 }
 </script>
 
