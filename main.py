@@ -3,16 +3,15 @@ import numpy as np
 import cv2
 from fastapi.responses import FileResponse
 
-app = FastAPI(
-    title="Face Swap API",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json"
-)
+app = FastAPI()
 
 @app.get("/")
 def home():
     return {"message": "Face Swap API Running 🔥"}
+
+@app.get("/openapi.json")
+def get_openapi():
+    return app.openapi()
 
 @app.post("/swap")
 async def swap_faces(file1: UploadFile = File(...), file2: UploadFile = File(...)):
