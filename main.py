@@ -1,5 +1,8 @@
 from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse, FileResponse
+import mediapipe as mp
+
+mp_face = mp.solutions.face_detection.FaceDetection(model_selection=1)
 import cv2
 import numpy as np
 from io import BytesIO
