@@ -20,6 +20,15 @@ def detect_face(img):
     return faces
 
 
+def match_color(source, target):
+    # simple color match (mean adjustment)
+    source_mean = np.mean(source, axis=(0,1))
+    target_mean = np.mean(target, axis=(0,1))
+    diff = target_mean - source_mean
+    result = source + diff
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+
 @app.post("/swap")
 async def swap(file1: UploadFile = File(...), file2: UploadFile = File(...)):
     img1 = np.frombuffer(await file1.read(), np.uint8)
@@ -42,9 +51,15 @@ async def swap(file1: UploadFile = File(...), file2: UploadFile = File(...)):
 
     face2 = cv2.resize(face2, (w1, h1))
 
-    # mask बनाओ
+    # 🎨 Color match
+    face2 = match_color(face2, face1)
+
+    # 🎯 Mask (oval)
     mask = np.zeros((h1, w1), dtype=np.uint8)
     cv2.ellipse(mask, (w1//2, h1//2), (w1//2, h1//2), 0, 0, 360, 255, -1)
+
+    # 🧊 Blur edges
+    mask = cv2.GaussianBlur(mask, (31,31), 0)
 
     center = (x1 + w1//2, y1 + h1//2)
 
